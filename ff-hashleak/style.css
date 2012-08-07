@@ -1,0 +1,38 @@
+        * {
+            font-family: Tahoma, Geneva, sans-serif;
+         }
+        .column0 {
+            float:left;
+            width: 75%;
+        }
+        .column1 {
+            float:left;
+            width: 49%;
+            border: 1px dotted black;
+        }
+        .column2 {
+            float:left;
+            width: 12%;
+        }
+
+        .row {
+            width: 100%;
+            border: 1px dotted green;
+            text-align:center;
+        }
+        div {
+        }
+        h1 {
+            margin: 5px;
+        }
+        h2 {
+            text-align:center;
+            font-size: 18px;
+            width: 100%;
+            margin: 5px;
+        }
+        p {
+            margin-left: 3px;
+            margin-bottom: 1px;
+            margin-top: 1px;
+        }

